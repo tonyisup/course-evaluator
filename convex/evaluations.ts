@@ -46,7 +46,20 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+/*
+import OpenAI from "openai";
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const response = await openai.responses.create({
+  prompt: {
+    "id": "pmpt_68dff5d001ac819484e9f33bf7f867e40787fa69bce0986c",
+    "version": "2"
+  }
+});
+*/
 export const evaluateCourses = action({
   args: {
     inputType: v.union(v.literal("text"), v.literal("single_image"), v.literal("two_images")),

@@ -62,24 +62,25 @@ export const evaluateCourses = action({
       throw new Error("Not authenticated");
     }
 
-    let content = "";
-    const messages: any[] = [];
+    const inputs: { name: string; value: string }[] = [];
 
-    if (args.inputType === "text" && args.textInput) {
-      content = args.textInput;
-      
-      if (args.isSimpleMode) {
-        messages.push({
-          role: "user",
-          content: `Please evaluate these course descriptions for equivalence. The user has provided both external and internal course descriptions in a single text input:\n\n${content}`
-        });
-      } else {
-        messages.push({
-          role: "user",
-          content: `Please evaluate these course descriptions for equivalence:\n\n${content}`
-        });
-      }
-    } else if (args.imageIds && args.imageIds.length > 0) {
+    if (args.inputType) {
+      inputs.push({ name: "inputType", value: args.inputType });
+    }
+    if (args.textInput) {
+      inputs.push({ name: "textInput", value: args.textInput });
+    }
+    if (args.isSimpleMode !== undefined) {
+      inputs.push({ name: "isSimpleMode", value: String(args.isSimpleMode) });
+    }
+    if (args.externalCoursesCount !== undefined) {
+      inputs.push({ name: "externalCoursesCount", value: String(args.externalCoursesCount) });
+    }
+    if (args.internalCoursesCount !== undefined) {
+      inputs.push({ name: "internalCoursesCount", value: String(args.internalCoursesCount) });
+    }
+
+    if (args.imageIds && args.imageIds.length > 0) {
       const imageUrls = await Promise.all(
         args.imageIds.map(async (id) => {
           const url = await ctx.storage.getUrl(id);
@@ -87,125 +88,30 @@ export const evaluateCourses = action({
           return url;
         })
       );
-
-      let messageText = "";
-      
-      if (args.isSimpleMode) {
-        messageText = `Please evaluate these course descriptions for equivalence. This is a single image containing both course descriptions. The external course should be on the left side and the internal course should be on the right side of the image.`;
-      } else {
-        messageText = `Please evaluate these course descriptions for equivalence. The images are organized as follows:
-${args.externalCoursesCount ? `- First ${args.externalCoursesCount} image(s): EXTERNAL COURSES` : ''}
-${args.internalCoursesCount ? `- ${args.externalCoursesCount ? 'Next' : 'First'} ${args.internalCoursesCount} image(s): INTERNAL COURSES` : ''}
-
-Please analyze the courses from each group and determine their equivalency.`;
-      }
-
-      const messageContent: any[] = [
-        { type: "text", text: messageText }
-      ];
-
-      imageUrls.forEach((url) => {
-        messageContent.push({
-          type: "image_url",
-          image_url: { url }
-        });
-      });
-
-      messages.push({
-        role: "user",
-        content: messageContent
-      });
+      inputs.push({ name: "imageUrls", value: JSON.stringify(imageUrls) });
     }
 
-    // System prompt - different for simple vs advanced mode
-    const systemPrompt = args.isSimpleMode ? 
-      `You are an expert academic advisor specializing in course equivalency evaluation. Your task is to analyze course descriptions and determine if they are equivalent for transfer credit purposes.
-
-You will be comparing EXTERNAL COURSES (from other institutions) with INTERNAL COURSES (from the receiving institution) to determine equivalency for transfer credit.
-
-When evaluating courses, consider:
-- Learning objectives and outcomes
-- Course content and topics covered  
-- Depth and breadth of material
-- Prerequisites and academic level
-- Credit hours and contact time
-- Assessment methods when available
-
-For text input: Look for clear labels like "External Course:" and "Internal Course:" or similar indicators.
-For image input: The external course is typically on the left side and the internal course is on the right side.
-
-Respond in the following structured JSON format:
-{
-  "reasoning": "[Detailed step-by-step analysis comparing course elements between external and internal courses. Note similarities, differences, and degree of equivalence. Mention any issues with image quality or text ambiguity.]",
-  "coverage": "[Percentage of how much the external course content is covered by the internal course]",
-  "confidence": "[How certain is the conclusion? Answer with a percentage, noting any factors that reduce confidence such as unclear text or missing information]",
-  "conclusion": "[Summary of equivalency determination: 'Equivalent' or 'Not Equivalent' with brief rationale]"
-}` :
-      `You are an expert academic advisor specializing in course equivalency evaluation. Your task is to analyze course descriptions and determine if they are equivalent for transfer credit purposes.
-
-You will be comparing EXTERNAL COURSES (from other institutions) with INTERNAL COURSES (from the receiving institution) to determine equivalency for transfer credit.
-
-When evaluating courses, consider:
-- Learning objectives and outcomes
-- Course content and topics covered  
-- Depth and breadth of material
-- Prerequisites and academic level
-- Credit hours and contact time
-- Assessment methods when available
-
-For multiple course comparisons:
-- Compare each external course against the most similar internal course(s)
-- Identify which courses have equivalents and which do not
-- Consider partial equivalencies where appropriate
-- Note any gaps in coverage or additional content
-
-Respond in the following structured JSON format:
-{
-  "reasoning": "[Detailed step-by-step analysis comparing course elements between external and internal courses. Note similarities, differences, and degree of equivalence. Mention any issues with image quality or text ambiguity. For multiple courses, analyze each pairing.]",
-  "coverage": "[Overall percentage of how much the external course content is covered by internal courses, considering all comparisons]",
-  "confidence": "[How certain is the conclusion? Answer with a percentage, noting any factors that reduce confidence such as unclear text or missing information]",
-  "conclusion": "[Summary of equivalency determination. For single comparisons: 'Equivalent' or 'Not Equivalent'. For multiple courses: describe which courses are equivalent, partially equivalent, or not equivalent, with brief rationale]",
-  "courseMatches": "[If multiple courses: list specific course pairings and their individual equivalency status]"
-}`;
-
-    messages.unshift({
-      role: "system",
-      content: systemPrompt
+    const response = await (openai as any).responses.create({
+      prompt: {
+        id: "pmpt_68dff5d001ac819484e9f33bf7f867e40787fa69bce0986c",
+        version: "2",
+      },
+      input: inputs,
+      reasoning: {},
+      tools: [
+        {
+          type: "file_search",
+          vector_store_ids: ["vs_68dff4cf8a7881919145bb777b2c2f0a"],
+        },
+      ],
+      store: true,
+      include: [
+        "reasoning.encrypted_content",
+        "web_search_call.action.sources",
+      ],
     });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages,
-      temperature: 0.1,
-    });
-
-    const resultText = response.choices[0].message.content;
-    if (!resultText) {
-      throw new Error("No response from OpenAI");
-    }
-
-    let result;
-    try {
-      // Try to extract JSON from markdown code blocks or parse directly
-      let jsonText = resultText;
-      
-      // Check if the response is wrapped in markdown code blocks
-      const jsonMatch = resultText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        jsonText = jsonMatch[1];
-      }
-      
-      result = JSON.parse(jsonText);
-    } catch (error) {
-      // If JSON parsing fails, create a structured response
-      result = {
-        reasoning: resultText,
-        coverage: "Unable to determine",
-        confidence: "Low due to parsing error",
-        conclusion: "Unable to determine equivalence",
-        courseMatches: args.isSimpleMode ? undefined : "Unable to parse course matches"
-      };
-    }
+    const result = response;
 
     // Save the evaluation
     await ctx.runMutation(internal.evaluations.saveEvaluation, {

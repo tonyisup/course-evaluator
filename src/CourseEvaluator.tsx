@@ -3,7 +3,7 @@ import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { toast } from "sonner";
 
-type InputType = "text" | "single_image" | "two_images";
+type InputType = "text" | "single_image" | "multiple_images";
 type TabType = "simple" | "advanced";
 
 interface CourseGroup {
@@ -90,35 +90,25 @@ export function CourseEvaluator() {
       }
 
       if (imageFiles.length > 0) {
-        const maxFiles = activeTab === "simple" ? 1 : (inputType === "two_images" ? 2 : 1);
-        
-        if (imageFiles.length > maxFiles) {
-          toast.error(`Please paste only ${maxFiles} image${maxFiles > 1 ? 's' : ''}`);
-          return;
-        }
-
-        if (targetGroup === 'simple') {
-          const totalImages = simpleSelectedImages.length + imageFiles.length;
-          if (totalImages > maxFiles) {
+        if (activeTab === "simple") {
+          const maxFiles = 1;
+          if (simpleSelectedImages.length + imageFiles.length > maxFiles) {
             toast.error(`Maximum ${maxFiles} image allowed`);
             return;
           }
           setSimpleSelectedImages(prev => [...prev, ...imageFiles]);
           setSimplePastedImages(prev => [...prev, ...imageUrls]);
         } else {
-          const currentGroup = targetGroup === 'external' ? externalCourses : internalCourses;
-          const totalImages = currentGroup.selectedImages.length + imageFiles.length;
-          if (totalImages > maxFiles) {
-            toast.error(`Maximum ${maxFiles} image${maxFiles > 1 ? 's' : ''} allowed per group`);
-            return;
+          // No limit for advanced mode
+          const targetGroup = document.activeElement?.closest('[data-group]')?.getAttribute('data-group');
+          if (targetGroup === 'external' || targetGroup === 'internal') {
+            const updateGroup = targetGroup === 'external' ? setExternalCourses : setInternalCourses;
+            updateGroup(prev => ({
+              ...prev,
+              selectedImages: [...prev.selectedImages, ...imageFiles],
+              pastedImages: [...prev.pastedImages, ...imageUrls]
+            }));
           }
-
-          const updateGroup = targetGroup === 'external' ? setExternalCourses : setInternalCourses;
-          updateGroup(prev => ({
-            ...prev,
-            selectedImages: [...prev.selectedImages, ...imageFiles],
-            pastedImages: [...prev.pastedImages, ...imageUrls]
-          }));
         }
         
         toast.success(`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} pasted successfully!`);
@@ -160,14 +150,6 @@ export function CourseEvaluator() {
 
   const handleAdvancedImageSelect = (event: React.ChangeEvent<HTMLInputElement>, group: 'external' | 'internal') => {
     const files = Array.from(event.target.files || []);
-    const maxFiles = inputType === "two_images" ? 2 : 1;
-    const currentGroup = group === 'external' ? externalCourses : internalCourses;
-    
-    const totalImages = currentGroup.selectedImages.length + files.length;
-    if (totalImages > maxFiles) {
-      toast.error(`Maximum ${maxFiles} image${maxFiles > 1 ? 's' : ''} allowed per group`);
-      return;
-    }
     
     const updateGroup = group === 'external' ? setExternalCourses : setInternalCourses;
     updateGroup(prev => ({
@@ -522,9 +504,9 @@ export function CourseEvaluator() {
             />
           </div>
         ) : (
-          <div ref={pasteAreaRef}>
+          <div ref={pasteAreaRef} data-group={groupType}>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload Course Description Image{inputType === "two_images" ? "s" : ""}
+              Upload Course Description Image{inputType === "multiple_images" ? "s" : ""}
             </label>
             
             {/* File Input */}
@@ -532,7 +514,7 @@ export function CourseEvaluator() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              multiple={inputType === "two_images"}
+              multiple={inputType === "multiple_images"}
               onChange={(e) => handleAdvancedImageSelect(e, groupType)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3"
             />
@@ -558,7 +540,7 @@ export function CourseEvaluator() {
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-sm font-medium text-gray-700">
-                    Selected Images ({group.selectedImages.length}/{inputType === "two_images" ? 2 : 1})
+                    Selected Images ({group.selectedImages.length})
                   </div>
                   <button
                     onClick={() => clearAllAdvancedImages(groupType)}
@@ -635,15 +617,15 @@ export function CourseEvaluator() {
             <label className="flex items-center">
               <input
                 type="radio"
-                value="two_images"
-                checked={inputType === "two_images"}
+                value="multiple_images"
+                checked={inputType === "multiple_images"}
                 onChange={(e) => {
                   setInputType(e.target.value as InputType);
                   clearAllAdvancedImages();
                 }}
                 className="mr-2"
               />
-              Two Images
+              Multiple Images
             </label>
           </div>
         </div>

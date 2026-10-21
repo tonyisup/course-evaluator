@@ -13,6 +13,17 @@ The backend code is in the `convex` directory.
   
 `npm run dev` will start the frontend and backend servers.
 
+## AI model configuration
+
+Evaluations are run through [OpenRouter](https://openrouter.ai). Set these environment variables on your Convex deployment:
+
+```sh
+npx convex env set OPENROUTER_API_KEY <your-openrouter-key>
+npx convex env set OPENROUTER_MODEL anthropic/claude-haiku-5.5
+```
+
+`OPENROUTER_MODEL` can be any [OpenRouter model ID](https://openrouter.ai/models) that accepts image input and supports structured outputs (`response_format` with a JSON schema). Requests are only routed to providers that support structured outputs, so a model without it fails with an error from OpenRouter instead of returning unparseable text.
+
 ## App authentication
 
 Chef apps use [Convex Auth](https://auth.convex.dev/) with Anonymous auth for easy sign in. You may wish to change this before deploying your app.

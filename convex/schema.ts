@@ -5,7 +5,12 @@ import { authTables } from "@convex-dev/auth/server";
 const applicationTables = {
   evaluations: defineTable({
     userId: v.id("users"),
-    inputType: v.union(v.literal("text"), v.literal("single_image"), v.literal("two_images")),
+    inputType: v.union(
+      v.literal("text"),
+      v.literal("single_image"),
+      v.literal("multiple_images"),
+      v.literal("two_images"), // legacy
+    ),
     textInput: v.optional(v.string()),
     imageIds: v.optional(v.array(v.id("_storage"))),
     result: v.object({

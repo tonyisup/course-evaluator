@@ -653,13 +653,25 @@ export function CourseEvaluator() {
   };
 
   const renderResult = (result: any) => {
-    const isEquivalent = result.conclusion.toLowerCase().includes("equivalent") && 
-                        !result.conclusion.toLowerCase().includes("not equivalent");
-    
+    // The prompt asks for the conclusion to start with the verdict label.
+    const conclusion = result.conclusion.trim().toLowerCase();
+    const verdict = conclusion.startsWith("not equivalent")
+      ? "not"
+      : conclusion.startsWith("partially equivalent")
+        ? "partial"
+        : conclusion.startsWith("equivalent")
+          ? "equivalent"
+          // Older results didn't use a fixed label, so fall back to a keyword check.
+          : conclusion.includes("equivalent") && !conclusion.includes("not equivalent")
+            ? "equivalent"
+            : "not";
+    const dotClass = { equivalent: 'bg-green-500', partial: 'bg-amber-500', not: 'bg-red-500' }[verdict];
+    const conclusionClass = { equivalent: 'bg-green-50 text-green-800', partial: 'bg-amber-50 text-amber-800', not: 'bg-red-50 text-red-800' }[verdict];
+
     return (
       <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
         <div className="flex items-center gap-2 mb-4">
-          <div className={`w-3 h-3 rounded-full ${isEquivalent ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className={`w-3 h-3 rounded-full ${dotClass}`}></div>
           <h3 className="text-lg font-semibold">Evaluation Result</h3>
         </div>
         
@@ -677,7 +689,7 @@ export function CourseEvaluator() {
         <div className="space-y-3">
           <div>
             <div className="text-sm font-medium text-gray-600 mb-2">Conclusion</div>
-            <div className={`p-3 rounded ${isEquivalent ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            <div className={`p-3 rounded ${conclusionClass}`}>
               {result.conclusion}
             </div>
           </div>
@@ -685,7 +697,7 @@ export function CourseEvaluator() {
           {result.courseMatches && (
             <div>
               <div className="text-sm font-medium text-gray-600 mb-2">Course Matches</div>
-              <div className="bg-blue-50 p-3 rounded text-sm leading-relaxed text-blue-800">
+              <div className="bg-blue-50 p-3 rounded text-sm leading-relaxed text-blue-800 whitespace-pre-line">
                 {result.courseMatches}
               </div>
             </div>
@@ -693,7 +705,7 @@ export function CourseEvaluator() {
           
           <div>
             <div className="text-sm font-medium text-gray-600 mb-2">Reasoning</div>
-            <div className="bg-gray-50 p-3 rounded text-sm leading-relaxed">
+            <div className="bg-gray-50 p-3 rounded text-sm leading-relaxed whitespace-pre-line">
               {result.reasoning}
             </div>
           </div>
